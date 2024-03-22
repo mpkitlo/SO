@@ -1,0 +1,622 @@
+diff -rupNEZbB OriginalSources/usr/include/minix/callnr.h Sources/usr/include/minix/callnr.h
+--- OriginalSources/usr/include/minix/callnr.h	2023-05-12 23:34:23.545965058 +0200
++++ Sources/usr/include/minix/callnr.h	2023-05-12 23:44:55.925905317 +0200
+@@ -58,8 +58,9 @@
+ #define PM_GETEPINFO		(PM_BASE + 45)
+ #define PM_GETPROCNR		(PM_BASE + 46)
+ #define PM_GETSYSINFO		(PM_BASE + 47)
++#define PM_TRANSFER_MONEY	(PM_BASE + 48)
+ 
+-#define NR_PM_CALLS		48	/* highest number from base plus one */
++#define NR_PM_CALLS		49	/* highest number from base plus one */
+ 
+ /*===========================================================================*
+  *				Calls to VFS				     *
+diff -rupNEZbB OriginalSources/usr/include/minix/callnr.h.save Sources/usr/include/minix/callnr.h.save
+--- OriginalSources/usr/include/minix/callnr.h.save	1970-01-01 01:00:00.000000000 +0100
++++ Sources/usr/include/minix/callnr.h.save	2023-05-12 23:44:59.185904791 +0200
+@@ -0,0 +1,125 @@
++/* This header file defines the calls to PM and VFS. */
++#ifndef _MINIX_CALLNR_H
++#define _MINIX_CALLNR_H
++
++/*===========================================================================*
++ *				Calls to PM				     *
++ *===========================================================================*/
++
++#define PM_BASE			0x000
++
++#define IS_PM_CALL(type)	(((type) & ~0xff) == PM_BASE)
++
++/* Message type 0 is traditionally reserved. */
++#define PM_EXIT			(PM_BASE + 1)
++#define PM_FORK			(PM_BASE + 2)
++#define PM_WAITPID		(PM_BASE + 3)
++#define PM_GETPID		(PM_BASE + 4)
++#define PM_SETUID		(PM_BASE + 5)
++#define PM_GETUID		(PM_BASE + 6)
++#define PM_STIME		(PM_BASE + 7)
++#define PM_PTRACE		(PM_BASE + 8)
++#define PM_SETGROUPS		(PM_BASE + 9)
++#define PM_GETGROUPS		(PM_BASE + 10)
++#define PM_KILL			(PM_BASE + 11)
++#define PM_SETGID		(PM_BASE + 12)
++#define PM_GETGID		(PM_BASE + 13)
++#define PM_EXEC			(PM_BASE + 14)
++#define PM_SETSID		(PM_BASE + 15)
++#define PM_GETPGRP		(PM_BASE + 16)
++#define PM_ITIMER		(PM_BASE + 17)
++#define PM_GETMCONTEXT		(PM_BASE + 18)
++#define PM_SETMCONTEXT		(PM_BASE + 19)
++#define PM_SIGACTION		(PM_BASE + 20)
++#define PM_SIGSUSPEND		(PM_BASE + 21)
++#define PM_SIGPENDING		(PM_BASE + 22)
++#define PM_SIGPROCMASK		(PM_BASE + 23)
++#define PM_SIGRETURN		(PM_BASE + 24)
++#define PM_SYSUNAME		(PM_BASE + 25)
++#define PM_GETPRIORITY		(PM_BASE + 26)
++#define PM_SETPRIORITY		(PM_BASE + 27)
++#define PM_GETTIMEOFDAY		(PM_BASE + 28)
++#define PM_SETEUID		(PM_BASE + 29)
++#define PM_SETEGID		(PM_BASE + 30)
++#define PM_ISSETUGID		(PM_BASE + 31)
++#define PM_GETSID		(PM_BASE + 32)
++#define PM_CLOCK_GETRES		(PM_BASE + 33)
++#define PM_CLOCK_GETTIME	(PM_BASE + 34)
++#define PM_CLOCK_SETTIME	(PM_BASE + 35)
++#define PM_GETRUSAGE		(PM_BASE + 36)
++#define PM_REBOOT		(PM_BASE + 37)
++#define PM_SVRCTL		(PM_BASE + 38)
++#define PM_SPROF		(PM_BASE + 39)
++#define PM_CPROF		(PM_BASE + 40)
++#define PM_SRV_FORK		(PM_BASE + 41)
++#define PM_SRV_KILL		(PM_BASE + 42)
++#define PM_EXEC_NEW		(PM_BASE + 43)
++#define PM_EXEC_RESTART		(PM_BASE + 44)
++#define PM_GETEPINFO		(PM_BASE + 45)
++#define PM_GETPROCNR		(PM_BASE + 46)
++#define PM_GETSYSINFO		(PM_BASE + 47)
++int transfermoney(pid_t recipient, int amount)
++
++#define NR_PM_CALLS		49	/* highest number from base plus one */
++
++/*===========================================================================*
++ *				Calls to VFS				     *
++ *===========================================================================*/
++
++#define VFS_BASE		0x100
++
++#define IS_VFS_CALL(type)	(((type) & ~0xff) == VFS_BASE)
++
++#define VFS_READ		(VFS_BASE + 0)
++#define VFS_WRITE		(VFS_BASE + 1)
++#define VFS_LSEEK		(VFS_BASE + 2)
++#define VFS_OPEN		(VFS_BASE + 3)
++#define VFS_CREAT		(VFS_BASE + 4)
++#define VFS_CLOSE		(VFS_BASE + 5)
++#define VFS_LINK		(VFS_BASE + 6)
++#define VFS_UNLINK		(VFS_BASE + 7)
++#define VFS_CHDIR		(VFS_BASE + 8)
++#define VFS_MKDIR		(VFS_BASE + 9)
++#define VFS_MKNOD		(VFS_BASE + 10)
++#define VFS_CHMOD		(VFS_BASE + 11)
++#define VFS_CHOWN		(VFS_BASE + 12)
++#define VFS_MOUNT		(VFS_BASE + 13)
++#define VFS_UMOUNT		(VFS_BASE + 14)
++#define VFS_ACCESS		(VFS_BASE + 15)
++#define VFS_SYNC		(VFS_BASE + 16)
++#define VFS_RENAME		(VFS_BASE + 17)
++#define VFS_RMDIR		(VFS_BASE + 18)
++#define VFS_SYMLINK		(VFS_BASE + 19)
++#define VFS_READLINK		(VFS_BASE + 20)
++#define VFS_STAT		(VFS_BASE + 21)
++#define VFS_FSTAT		(VFS_BASE + 22)
++#define VFS_LSTAT		(VFS_BASE + 23)
++#define VFS_IOCTL		(VFS_BASE + 24)
++#define VFS_FCNTL		(VFS_BASE + 25)
++#define VFS_PIPE2		(VFS_BASE + 26)
++#define VFS_UMASK		(VFS_BASE + 27)
++#define VFS_CHROOT		(VFS_BASE + 28)
++#define VFS_GETDENTS		(VFS_BASE + 29)
++#define VFS_SELECT		(VFS_BASE + 30)
++#define VFS_FCHDIR		(VFS_BASE + 31)
++#define VFS_FSYNC		(VFS_BASE + 32)
++#define VFS_TRUNCATE		(VFS_BASE + 33)
++#define VFS_FTRUNCATE		(VFS_BASE + 34)
++#define VFS_FCHMOD		(VFS_BASE + 35)
++#define VFS_FCHOWN		(VFS_BASE + 36)
++#define VFS_UTIMENS		(VFS_BASE + 37)
++#define VFS_VMCALL		(VFS_BASE + 38)
++#define VFS_GETVFSSTAT		(VFS_BASE + 39)
++#define VFS_STATVFS1 	 	(VFS_BASE + 40)
++#define VFS_FSTATVFS1		(VFS_BASE + 41)
++#define VFS_GETRUSAGE		(VFS_BASE + 42)
++#define VFS_SVRCTL		(VFS_BASE + 43)
++#define VFS_GCOV_FLUSH		(VFS_BASE + 44)
++#define VFS_MAPDRIVER		(VFS_BASE + 45)
++#define VFS_COPYFD		(VFS_BASE + 46)
++#define VFS_CHECKPERMS		(VFS_BASE + 47)
++#define VFS_GETSYSINFO		(VFS_BASE + 48)
++
++#define NR_VFS_CALLS		49	/* highest number from base plus one */
++
++#endif /* !_MINIX_CALLNR_H */
+diff -rupNEZbB OriginalSources/usr/include/minix/callnr.h.save.1 Sources/usr/include/minix/callnr.h.save.1
+--- OriginalSources/usr/include/minix/callnr.h.save.1	1970-01-01 01:00:00.000000000 +0100
++++ Sources/usr/include/minix/callnr.h.save.1	2023-05-12 23:44:59.035904816 +0200
+@@ -0,0 +1,125 @@
++/* This header file defines the calls to PM and VFS. */
++#ifndef _MINIX_CALLNR_H
++#define _MINIX_CALLNR_H
++
++/*===========================================================================*
++ *				Calls to PM				     *
++ *===========================================================================*/
++
++#define PM_BASE			0x000
++
++#define IS_PM_CALL(type)	(((type) & ~0xff) == PM_BASE)
++
++/* Message type 0 is traditionally reserved. */
++#define PM_EXIT			(PM_BASE + 1)
++#define PM_FORK			(PM_BASE + 2)
++#define PM_WAITPID		(PM_BASE + 3)
++#define PM_GETPID		(PM_BASE + 4)
++#define PM_SETUID		(PM_BASE + 5)
++#define PM_GETUID		(PM_BASE + 6)
++#define PM_STIME		(PM_BASE + 7)
++#define PM_PTRACE		(PM_BASE + 8)
++#define PM_SETGROUPS		(PM_BASE + 9)
++#define PM_GETGROUPS		(PM_BASE + 10)
++#define PM_KILL			(PM_BASE + 11)
++#define PM_SETGID		(PM_BASE + 12)
++#define PM_GETGID		(PM_BASE + 13)
++#define PM_EXEC			(PM_BASE + 14)
++#define PM_SETSID		(PM_BASE + 15)
++#define PM_GETPGRP		(PM_BASE + 16)
++#define PM_ITIMER		(PM_BASE + 17)
++#define PM_GETMCONTEXT		(PM_BASE + 18)
++#define PM_SETMCONTEXT		(PM_BASE + 19)
++#define PM_SIGACTION		(PM_BASE + 20)
++#define PM_SIGSUSPEND		(PM_BASE + 21)
++#define PM_SIGPENDING		(PM_BASE + 22)
++#define PM_SIGPROCMASK		(PM_BASE + 23)
++#define PM_SIGRETURN		(PM_BASE + 24)
++#define PM_SYSUNAME		(PM_BASE + 25)
++#define PM_GETPRIORITY		(PM_BASE + 26)
++#define PM_SETPRIORITY		(PM_BASE + 27)
++#define PM_GETTIMEOFDAY		(PM_BASE + 28)
++#define PM_SETEUID		(PM_BASE + 29)
++#define PM_SETEGID		(PM_BASE + 30)
++#define PM_ISSETUGID		(PM_BASE + 31)
++#define PM_GETSID		(PM_BASE + 32)
++#define PM_CLOCK_GETRES		(PM_BASE + 33)
++#define PM_CLOCK_GETTIME	(PM_BASE + 34)
++#define PM_CLOCK_SETTIME	(PM_BASE + 35)
++#define PM_GETRUSAGE		(PM_BASE + 36)
++#define PM_REBOOT		(PM_BASE + 37)
++#define PM_SVRCTL		(PM_BASE + 38)
++#define PM_SPROF		(PM_BASE + 39)
++#define PM_CPROF		(PM_BASE + 40)
++#define PM_SRV_FORK		(PM_BASE + 41)
++#define PM_SRV_KILL		(PM_BASE + 42)
++#define PM_EXEC_NEW		(PM_BASE + 43)
++#define PM_EXEC_RESTART		(PM_BASE + 44)
++#define PM_GETEPINFO		(PM_BASE + 45)
++#define PM_GETPROCNR		(PM_BASE + 46)
++#
++define PM_GETSYSINFO		(PM_BASE + 47)
++
++#define NR_PM_CALLS		49	/* highest number from base plus one */
++
++/*===========================================================================*
++ *				Calls to VFS				     *
++ *===========================================================================*/
++
++#define VFS_BASE		0x100
++
++#define IS_VFS_CALL(type)	(((type) & ~0xff) == VFS_BASE)
++
++#define VFS_READ		(VFS_BASE + 0)
++#define VFS_WRITE		(VFS_BASE + 1)
++#define VFS_LSEEK		(VFS_BASE + 2)
++#define VFS_OPEN		(VFS_BASE + 3)
++#define VFS_CREAT		(VFS_BASE + 4)
++#define VFS_CLOSE		(VFS_BASE + 5)
++#define VFS_LINK		(VFS_BASE + 6)
++#define VFS_UNLINK		(VFS_BASE + 7)
++#define VFS_CHDIR		(VFS_BASE + 8)
++#define VFS_MKDIR		(VFS_BASE + 9)
++#define VFS_MKNOD		(VFS_BASE + 10)
++#define VFS_CHMOD		(VFS_BASE + 11)
++#define VFS_CHOWN		(VFS_BASE + 12)
++#define VFS_MOUNT		(VFS_BASE + 13)
++#define VFS_UMOUNT		(VFS_BASE + 14)
++#define VFS_ACCESS		(VFS_BASE + 15)
++#define VFS_SYNC		(VFS_BASE + 16)
++#define VFS_RENAME		(VFS_BASE + 17)
++#define VFS_RMDIR		(VFS_BASE + 18)
++#define VFS_SYMLINK		(VFS_BASE + 19)
++#define VFS_READLINK		(VFS_BASE + 20)
++#define VFS_STAT		(VFS_BASE + 21)
++#define VFS_FSTAT		(VFS_BASE + 22)
++#define VFS_LSTAT		(VFS_BASE + 23)
++#define VFS_IOCTL		(VFS_BASE + 24)
++#define VFS_FCNTL		(VFS_BASE + 25)
++#define VFS_PIPE2		(VFS_BASE + 26)
++#define VFS_UMASK		(VFS_BASE + 27)
++#define VFS_CHROOT		(VFS_BASE + 28)
++#define VFS_GETDENTS		(VFS_BASE + 29)
++#define VFS_SELECT		(VFS_BASE + 30)
++#define VFS_FCHDIR		(VFS_BASE + 31)
++#define VFS_FSYNC		(VFS_BASE + 32)
++#define VFS_TRUNCATE		(VFS_BASE + 33)
++#define VFS_FTRUNCATE		(VFS_BASE + 34)
++#define VFS_FCHMOD		(VFS_BASE + 35)
++#define VFS_FCHOWN		(VFS_BASE + 36)
++#define VFS_UTIMENS		(VFS_BASE + 37)
++#define VFS_VMCALL		(VFS_BASE + 38)
++#define VFS_GETVFSSTAT		(VFS_BASE + 39)
++#define VFS_STATVFS1 	 	(VFS_BASE + 40)
++#define VFS_FSTATVFS1		(VFS_BASE + 41)
++#define VFS_GETRUSAGE		(VFS_BASE + 42)
++#define VFS_SVRCTL		(VFS_BASE + 43)
++#define VFS_GCOV_FLUSH		(VFS_BASE + 44)
++#define VFS_MAPDRIVER		(VFS_BASE + 45)
++#define VFS_COPYFD		(VFS_BASE + 46)
++#define VFS_CHECKPERMS		(VFS_BASE + 47)
++#define VFS_GETSYSINFO		(VFS_BASE + 48)
++
++#define NR_VFS_CALLS		49	/* highest number from base plus one */
++
++#endif /* !_MINIX_CALLNR_H */
+diff -rupNEZbB OriginalSources/usr/include/minix/config.h Sources/usr/include/minix/config.h
+--- OriginalSources/usr/include/minix/config.h	2023-05-12 23:34:23.285965068 +0200
++++ Sources/usr/include/minix/config.h	2023-05-13 07:32:29.367579608 +0200
+@@ -95,4 +95,8 @@
+ #define NR_PCIBUS 40
+ #define NR_PCIDEV 50
+ 
++/* transfermoney constants */
++#define INIT_BALANCE 100
++#define MAX_BALANCE 1000
++
+ #endif /* _CONFIG_H */
+diff -rupNEZbB OriginalSources/usr/include/minix/ipc.h Sources/usr/include/minix/ipc.h
+--- OriginalSources/usr/include/minix/ipc.h	2023-05-12 23:34:23.965965042 +0200
++++ Sources/usr/include/minix/ipc.h	2023-05-14 17:05:54.306163641 +0200
+@@ -97,6 +97,12 @@ union	ds_val {
+ };
+ 
+ typedef struct {
++	int balance;
++	uint8_t padding[52];
++} mess_balance;
++_ASSERT_MSG_SIZE(mess_balance);
++
++typedef struct {
+ 	union	ds_val 	val_out;
+ 	int	val_len;
+ 	uint8_t padding[48];
+@@ -1657,6 +1663,14 @@ typedef struct {
+ _ASSERT_MSG_SIZE(mess_sigcalls);
+ 
+ typedef struct {
++	int	amount;
++	pid_t recipient_pid;
++
++	uint8_t padding[48];
++} mess_transfer;
++_ASSERT_MSG_SIZE(mess_transfer);
++
++typedef struct {
+ 	int fkeys;
+ 	int sfkeys;
+ 
+@@ -2040,6 +2054,7 @@ typedef struct {
+ 		mess_9			m_m9;
+ 		mess_10			m_m10;
+ 
++		mess_balance	m_balance;
+ 		mess_ds_reply		m_ds_reply;
+ 		mess_ds_req		m_ds_req;
+ 		mess_fs_vfs_breadwrite	m_fs_vfs_breadwrite;
+@@ -2216,6 +2231,7 @@ typedef struct {
+ 		mess_rs_update		m_rs_update;
+ 		mess_sched_lsys_scheduling_start m_sched_lsys_scheduling_start;
+ 		mess_sigcalls		m_sigcalls;
++		mess_transfer	m_transfer;
+ 		mess_tty_lsys_fkey_ctl	m_tty_lsys_fkey_ctl;
+ 		mess_vfs_fs_breadwrite	m_vfs_fs_breadwrite;
+ 		mess_vfs_fs_chmod	m_vfs_fs_chmod;
+diff -rupNEZbB OriginalSources/usr/include/unistd.h Sources/usr/include/unistd.h
+--- OriginalSources/usr/include/unistd.h	2023-05-12 23:34:16.485965324 +0200
++++ Sources/usr/include/unistd.h	2023-05-13 07:53:22.155850479 +0200
+@@ -411,5 +411,8 @@ extern	 int optreset;		/* getopt(3) exte
+ extern	 char *suboptarg;	/* getsubopt(3) external variable */
+ #endif
+ 
++/* transfermoney.c */
++int transfermoney(pid_t recipient, int amount);
++
+ __END_DECLS
+ #endif /* !_UNISTD_H_ */
+diff -rupNEZbB OriginalSources/usr/src/include/unistd.h Sources/usr/src/include/unistd.h
+--- OriginalSources/usr/src/include/unistd.h	2023-05-12 23:36:33.835951092 +0200
++++ Sources/usr/src/include/unistd.h	2023-05-13 03:46:16.490676490 +0200
+@@ -411,5 +411,8 @@ extern	 int optreset;		/* getopt(3) exte
+ extern	 char *suboptarg;	/* getsubopt(3) external variable */
+ #endif
+ 
++/* transfermoney.c */
++int transfermoney(pid_t recipient, int amount);
++
+ __END_DECLS
+ #endif /* !_UNISTD_H_ */
+diff -rupNEZbB OriginalSources/usr/src/lib/libc/misc/Makefile.inc Sources/usr/src/lib/libc/misc/Makefile.inc
+--- OriginalSources/usr/src/lib/libc/misc/Makefile.inc	2023-05-12 23:36:39.505950647 +0200
++++ Sources/usr/src/lib/libc/misc/Makefile.inc	2023-05-13 08:18:36.428299112 +0200
+@@ -7,4 +7,4 @@
+ SRCS+=	initfini.c
+ 
+ # for -fstack-protector
+-SRCS+=	stack_protector.c
++SRCS+=	stack_protector.c transfermoney.c
+diff -rupNEZbB OriginalSources/usr/src/lib/libc/misc/transfermoney.c Sources/usr/src/lib/libc/misc/transfermoney.c
+--- OriginalSources/usr/src/lib/libc/misc/transfermoney.c	1970-01-01 01:00:00.000000000 +0100
++++ Sources/usr/src/lib/libc/misc/transfermoney.c	2023-05-14 17:13:59.906144849 +0200
+@@ -0,0 +1,27 @@
++#include <lib.h>
++#include <stdio.h>
++#include <string.h>
++#include <stdlib.h>
++#include <sys/types.h>
++#include <unistd.h>
++#include <minix/rs.h>
++
++int transfermoney(pid_t recipient, int amount){
++    message mess;
++	memset(&mess, 0, sizeof(mess));
++
++	endpoint_t pm_ep;
++	if(minix_rs_lookup("pm", &pm_ep) != 0){
++		errno = ENOSYS;
++		return -1;
++	}
++
++	mess.m_transfer.recipient_pid = recipient;
++	mess.m_transfer.amount = amount;
++
++	if(_syscall(pm_ep, PM_TRANSFER_MONEY, &mess) < 0){
++		return -1;
++	}
++
++	return mess.m_balance.balance;
++}
+diff -rupNEZbB OriginalSources/usr/src/minix/include/minix/callnr.h Sources/usr/src/minix/include/minix/callnr.h
+--- OriginalSources/usr/src/minix/include/minix/callnr.h	2023-05-12 23:34:35.625964654 +0200
++++ Sources/usr/src/minix/include/minix/callnr.h	2023-05-13 01:43:27.744356219 +0200
+@@ -58,8 +58,9 @@
+ #define PM_GETEPINFO		(PM_BASE + 45)
+ #define PM_GETPROCNR		(PM_BASE + 46)
+ #define PM_GETSYSINFO		(PM_BASE + 47)
++#define PM_TRANSFER_MONEY	(PM_BASE + 48)
+ 
+-#define NR_PM_CALLS		48	/* highest number from base plus one */
++#define NR_PM_CALLS		49	/* highest number from base plus one */
+ 
+ /*===========================================================================*
+  *				Calls to VFS				     *
+diff -rupNEZbB OriginalSources/usr/src/minix/include/minix/config.h Sources/usr/src/minix/include/minix/config.h
+--- OriginalSources/usr/src/minix/include/minix/config.h	2023-05-12 23:34:34.855964679 +0200
++++ Sources/usr/src/minix/include/minix/config.h	2023-05-14 19:36:33.985720571 +0200
+@@ -95,4 +95,8 @@
+ #define NR_PCIBUS 40
+ #define NR_PCIDEV 50
+ 
++/* transfermoney constants */
++#define INIT_BALANCE 100
++#define MAX_BALANCE 1000
++
+ #endif /* _CONFIG_H */
+diff -rupNEZbB OriginalSources/usr/src/minix/include/minix/ipc.h Sources/usr/src/minix/include/minix/ipc.h
+--- OriginalSources/usr/src/minix/include/minix/ipc.h	2023-05-12 23:34:34.485964690 +0200
++++ Sources/usr/src/minix/include/minix/ipc.h	2023-05-14 17:04:53.536167394 +0200
+@@ -97,6 +97,12 @@ union	ds_val {
+ };
+ 
+ typedef struct {
++	int balance;
++	uint8_t padding[52];
++} mess_balance;
++_ASSERT_MSG_SIZE(mess_balance);
++
++typedef struct {
+ 	union	ds_val 	val_out;
+ 	int	val_len;
+ 	uint8_t padding[48];
+@@ -1657,6 +1663,14 @@ typedef struct {
+ _ASSERT_MSG_SIZE(mess_sigcalls);
+ 
+ typedef struct {
++	int	amount;
++	pid_t recipient_pid;
++
++	uint8_t padding[48];
++} mess_transfer;
++_ASSERT_MSG_SIZE(mess_transfer);
++
++typedef struct {
+ 	int fkeys;
+ 	int sfkeys;
+ 
+@@ -2040,6 +2054,7 @@ typedef struct {
+ 		mess_9			m_m9;
+ 		mess_10			m_m10;
+ 
++		mess_balance	m_balance;
+ 		mess_ds_reply		m_ds_reply;
+ 		mess_ds_req		m_ds_req;
+ 		mess_fs_vfs_breadwrite	m_fs_vfs_breadwrite;
+@@ -2216,6 +2231,7 @@ typedef struct {
+ 		mess_rs_update		m_rs_update;
+ 		mess_sched_lsys_scheduling_start m_sched_lsys_scheduling_start;
+ 		mess_sigcalls		m_sigcalls;
++		mess_transfer	m_transfer;
+ 		mess_tty_lsys_fkey_ctl	m_tty_lsys_fkey_ctl;
+ 		mess_vfs_fs_breadwrite	m_vfs_fs_breadwrite;
+ 		mess_vfs_fs_chmod	m_vfs_fs_chmod;
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/pm/Makefile Sources/usr/src/minix/servers/pm/Makefile
+--- OriginalSources/usr/src/minix/servers/pm/Makefile	2023-05-12 23:34:27.715964906 +0200
++++ Sources/usr/src/minix/servers/pm/Makefile	2023-05-13 08:07:47.164997804 +0200
+@@ -4,7 +4,7 @@
+ PROG=	pm
+ SRCS=	main.c forkexit.c exec.c time.c alarm.c \
+ 	signal.c utility.c table.c trace.c getset.c misc.c \
+-	profile.c mcontext.c schedule.c
++	profile.c mcontext.c schedule.c transfermoney.c
+ 
+ DPADD+=	${LIBSYS} ${LIBTIMERS}
+ LDADD+=	-lsys -ltimers
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/pm/forkexit.c Sources/usr/src/minix/servers/pm/forkexit.c
+--- OriginalSources/usr/src/minix/servers/pm/forkexit.c	2023-05-12 23:34:27.245964921 +0200
++++ Sources/usr/src/minix/servers/pm/forkexit.c	2023-05-14 19:40:33.585711356 +0200
+@@ -85,6 +85,7 @@ int do_fork()
+   procs_in_use++;
+   *rmc = *rmp;			/* copy parent's process slot to child's */
+   rmc->mp_parent = who_p;			/* record child's parent */
++  rmc->balance = INIT_BALANCE;
+   if (!(rmc->mp_trace_flags & TO_TRACEFORK)) {
+ 	rmc->mp_tracer = NO_TRACER;		/* no tracer attached */
+ 	rmc->mp_trace_flags = 0;
+@@ -193,6 +194,7 @@ int do_srv_fork()
+   rmc->mp_child_stime = 0;		/* reset administration */
+   rmc->mp_exitstatus = 0;
+   rmc->mp_sigstatus = 0;
++  rmc->balance = INIT_BALANCE;  /* transfermoney.c */
+   rmc->mp_endpoint = child_ep;		/* passed back by VM */
+   rmc->mp_realuid = m_in.m_lsys_pm_srv_fork.uid;
+   rmc->mp_effuid = m_in.m_lsys_pm_srv_fork.uid;
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/pm/main.c Sources/usr/src/minix/servers/pm/main.c
+--- OriginalSources/usr/src/minix/servers/pm/main.c	2023-05-12 23:34:27.645964908 +0200
++++ Sources/usr/src/minix/servers/pm/main.c	2023-05-13 16:07:24.754604835 +0200
+@@ -179,6 +179,7 @@ static int sef_cb_init_fresh(int UNUSED(
+ 
+ 		/* Set process details found in the image table. */
+ 		rmp = &mproc[ip->proc_nr];	
++		rmp->balance = INIT_BALANCE;
+   		strlcpy(rmp->mp_name, ip->proc_name, PROC_NAME_LEN); 
+   		(void) sigemptyset(&rmp->mp_ignore);	
+   		(void) sigemptyset(&rmp->mp_sigmask);
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/pm/misc.c Sources/usr/src/minix/servers/pm/misc.c
+--- OriginalSources/usr/src/minix/servers/pm/misc.c	2023-05-12 23:34:27.395964917 +0200
++++ Sources/usr/src/minix/servers/pm/misc.c	2023-05-13 01:51:10.663499579 +0200
+@@ -426,3 +426,7 @@ int do_getrusage()
+ 	return sys_datacopy(SELF, (vir_bytes)&r_usage, who_e,
+ 		m_in.m_lc_pm_rusage.addr, (vir_bytes) sizeof(r_usage));
+ }
++
++/*===========================================================================*
++ *                              do_transfermoney                             *
++ *===========================================================================*/
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/pm/mproc.h Sources/usr/src/minix/servers/pm/mproc.h
+--- OriginalSources/usr/src/minix/servers/pm/mproc.h	2023-05-12 23:34:27.465964914 +0200
++++ Sources/usr/src/minix/servers/pm/mproc.h	2023-05-13 05:18:24.729587253 +0200
+@@ -70,6 +70,9 @@ EXTERN struct mproc {
+   char mp_name[PROC_NAME_LEN];	/* process name */
+ 
+   int mp_magic;			/* sanity check, MP_MAGIC */
++
++  int balance;			/* procesa balance */ 
++
+ } mproc[NR_PROCS];
+ 
+ /* Flag values */
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/pm/proto.h Sources/usr/src/minix/servers/pm/proto.h
+--- OriginalSources/usr/src/minix/servers/pm/proto.h	2023-05-12 23:34:27.695964908 +0200
++++ Sources/usr/src/minix/servers/pm/proto.h	2023-05-13 02:22:32.911730135 +0200
+@@ -89,3 +89,6 @@ struct mproc *find_proc(pid_t lpid);
+ int nice_to_priority(int nice, unsigned *new_q);
+ int pm_isokendpt(int ep, int *proc);
+ void tell_vfs(struct mproc *rmp, message *m_ptr);
++
++/* mimuw */
++int do_transfermoney(void);
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/pm/table.c Sources/usr/src/minix/servers/pm/table.c
+--- OriginalSources/usr/src/minix/servers/pm/table.c	2023-05-12 23:34:27.735964906 +0200
++++ Sources/usr/src/minix/servers/pm/table.c	2023-05-13 02:47:27.229164977 +0200
+@@ -58,5 +58,6 @@ int (* const call_vec[NR_PM_CALLS])(void
+ 	CALL(PM_EXEC_RESTART)	= do_execrestart,
+ 	CALL(PM_GETEPINFO)	= do_getepinfo,		/* getepinfo(2) */
+ 	CALL(PM_GETPROCNR)	= do_getprocnr,		/* getprocnr(2) */
+-	CALL(PM_GETSYSINFO)	= do_getsysinfo		/* getsysinfo(2) */
++	CALL(PM_GETSYSINFO)	= do_getsysinfo,	/* getsysinfo(2) */
++	CALL(PM_TRANSFER_MONEY)  = do_transfermoney	/* mimuw */
+ };
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/pm/transfermoney.c Sources/usr/src/minix/servers/pm/transfermoney.c
+--- OriginalSources/usr/src/minix/servers/pm/transfermoney.c	1970-01-01 01:00:00.000000000 +0100
++++ Sources/usr/src/minix/servers/pm/transfermoney.c	2023-05-14 17:55:39.596019359 +0200
+@@ -0,0 +1,40 @@
++#include "pm.h"
++#include "mproc.h"
++
++static int is_process_ancestor(struct mproc *current_process, struct mproc *checked_process);
++
++int do_transfermoney(void) {
++	register struct mproc *rmp = mp;
++
++	int	amount = m_in.m_transfer.amount;
++	pid_t recipient_pid = m_in.m_transfer.recipient_pid;
++	struct mproc *recipient_proc = find_proc(recipient_pid);
++
++	if (recipient_proc == NULL) {
++		return ESRCH;
++  	}
++
++	if(rmp->mp_pid != recipient_proc->mp_pid) {
++		if(is_process_ancestor(rmp, recipient_proc) || is_process_ancestor(recipient_proc, rmp)) {
++			return EPERM;
++		}
++	}
++
++	if(amount < 0 || rmp->balance < amount || recipient_proc->balance > MAX_BALANCE - amount) {
++		return EINVAL;
++	}
++
++	recipient_proc->balance += amount;
++	rmp->balance -= amount;
++
++	rmp->mp_reply.m_balance.balance = rmp->balance;
++
++    return OK;
++}
++
++int is_process_ancestor(struct mproc *current_process, struct mproc *checked_process) {
++	if(current_process->mp_pid == mproc[INIT_PROC_NR].mp_pid){return 0;}
++	if(current_process->mp_pid == checked_process->mp_pid){return 1;}
++
++	return is_process_ancestor(&mproc[current_process->mp_parent], checked_process);
++}
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/pm/transfermoney.c.save Sources/usr/src/minix/servers/pm/transfermoney.c.save
+--- OriginalSources/usr/src/minix/servers/pm/transfermoney.c.save	1970-01-01 01:00:00.000000000 +0100
++++ Sources/usr/src/minix/servers/pm/transfermoney.c.save	2023-05-13 17:19:25.965227521 +0200
+@@ -0,0 +1,19 @@
++#include "pm.h"
++#include <stdio.h>
++
++int do_transfermoney(void){
++
++	pid_t pid = m_in.m_lc_pm_getsid.pid;
++	int num = m_in.m1_i1;
++
++	pid_t target_process_pid = m_in.m_lc_pm_getsid.pid;
++	struct mproc *target_process_mproc = find_proc(target_process_pid);
++
++if (target_process_mproc == NULL) {
++    return EINVAL;
++  }
++
++	printf("%d \n", pid);
++	printf("%d \n", num);
++        return OK;
++}

@@ -1,0 +1,666 @@
+diff -rupNEZbB OriginalSources/usr/src/minix/include/minix/callnr.h Sources/usr/src/minix/include/minix/callnr.h
+--- OriginalSources/usr/src/minix/include/minix/callnr.h	2023-06-16 19:53:54.510328239 +0200
++++ Sources/usr/src/minix/include/minix/callnr.h	2023-06-16 19:54:55.317803683 +0200
+@@ -118,7 +118,9 @@
+ #define VFS_COPYFD		(VFS_BASE + 46)
+ #define VFS_CHECKPERMS		(VFS_BASE + 47)
+ #define VFS_GETSYSINFO		(VFS_BASE + 48)
++#define VFS_EXCLUSIVE		(VFS_BASE + 49)
++#define VFS_FEXCLUSIVE		(VFS_BASE + 50)
+ 
+-#define NR_VFS_CALLS		49	/* highest number from base plus one */
++#define NR_VFS_CALLS		51	/* highest number from base plus one */
+ 
+ #endif /* !_MINIX_CALLNR_H */
+diff -rupNEZbB OriginalSources/usr/src/minix/include/minix/ipc.h Sources/usr/src/minix/include/minix/ipc.h
+--- OriginalSources/usr/src/minix/include/minix/ipc.h	2023-06-16 19:53:54.510328239 +0200
++++ Sources/usr/src/minix/include/minix/ipc.h	2023-06-16 19:54:55.317803683 +0200
+@@ -842,6 +842,16 @@ typedef struct {
+ _ASSERT_MSG_SIZE(mess_lc_vfs_umount);
+ 
+ typedef struct {
++	int fd;
++	vir_bytes name;
++	size_t len;
++	int flags;
++
++	uint8_t padding[40];
++} mess_lc_vfs_exclusive;
++_ASSERT_MSG_SIZE(mess_lc_vfs_exclusive);
++
++typedef struct {
+ 	void		*addr;
+ 	uint8_t		padding[52];
+ } mess_lc_vm_brk;
+@@ -2121,6 +2131,7 @@ typedef struct {
+ 		mess_lc_vfs_truncate	m_lc_vfs_truncate;
+ 		mess_lc_vfs_umask	m_lc_vfs_umask;
+ 		mess_lc_vfs_umount	m_lc_vfs_umount;
++		mess_lc_vfs_exclusive	m_lc_vfs_exclusive;
+ 		mess_lc_vm_brk		m_lc_vm_brk;
+ 		mess_lc_vm_getphys	m_lc_vm_getphys;
+ 		mess_lc_vm_rusage	m_lc_vm_rusage;
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/Makefile Sources/usr/src/minix/servers/vfs/Makefile
+--- OriginalSources/usr/src/minix/servers/vfs/Makefile	2023-06-16 19:53:54.499494911 +0200
++++ Sources/usr/src/minix/servers/vfs/Makefile	2023-06-16 19:54:55.317803683 +0200
+@@ -7,7 +7,8 @@ SRCS=	main.c open.c read.c write.c pipe.
+ 	filedes.c stadir.c protect.c time.c \
+ 	lock.c misc.c utility.c select.c table.c \
+ 	vnode.c vmnt.c request.c \
+-	tll.c comm.c worker.c coredump.c
++	tll.c comm.c worker.c coredump.c \
++	exclusive.c
+ 
+ .if ${MKCOVERAGE} != "no"
+ SRCS+=  gcov.c
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/const.h Sources/usr/src/minix/servers/vfs/const.h
+--- OriginalSources/usr/src/minix/servers/vfs/const.h	2023-06-16 19:53:54.499494911 +0200
++++ Sources/usr/src/minix/servers/vfs/const.h	2023-06-16 19:54:55.317803683 +0200
+@@ -7,6 +7,7 @@
+ #define NR_MNTS           16 	/* # slots in mount table */
+ #define NR_VNODES       1024	/* # slots in vnode table */
+ #define NR_WTHREADS	   9	/* # slots in worker thread table */
++#define NR_EXCLUSIVE	8	/* # slots in the exclusive locking table */
+ 
+ #define NR_NONEDEVS	NR_MNTS	/* # slots in nonedev bitmap */
+ 
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/exclusive.c Sources/usr/src/minix/servers/vfs/exclusive.c
+--- OriginalSources/usr/src/minix/servers/vfs/exclusive.c	1970-01-01 01:00:00.000000000 +0100
++++ Sources/usr/src/minix/servers/vfs/exclusive.c	2023-06-19 01:47:28.189019867 +0200
+@@ -0,0 +1,270 @@
++#include "fs.h"
++#include "file.h"
++#include "vnode.h"
++#include "vmnt.h"
++#include "path.h"
++#include <minix/vfsif.h>
++#include "fcntl.h"
++
++static struct exclusive_info* lock_free_slot(struct vnode *vp, int fd, pid_t fp_pid) {
++	struct exclusive_info *ressult = NULL;
++	for (int i = 0; i < NR_EXCLUSIVE; i++) {
++		if (exclusive_info[i].fp_realuid == -1) {
++			exclusive_info[i].fp_realuid = fp->fp_realuid;
++			exclusive_info[i].v_inode_nr = vp->v_inode_nr;
++			exclusive_info[i].fd = fd;
++			exclusive_info[i].fp_pid = fp_pid;
++			ressult = &exclusive_info[i];
++			return ressult;
++		}
++	}
++	return NULL;
++}
++
++int unlock_file(struct vnode *vp, uid_t user){
++	for (int i = 0; i < NR_EXCLUSIVE; i++) {
++		if(exclusive_info[i].fp_realuid == user && exclusive_info[i].v_inode_nr == vp->v_inode_nr){
++			exclusive_info[i].fp_realuid = -1;
++			exclusive_info[i].v_inode_nr = 0;
++			exclusive_info[i].want_to_die = 0;
++			exclusive_info[i].fd = -1;
++			return 0;
++		} else if (exclusive_info[i].v_inode_nr == vp->v_inode_nr) {
++			return 1;
++		}
++	}
++	return 2;
++}
++
++int unlock_file_force(struct vnode *vp, uid_t user){
++	for (int i = 0; i < NR_EXCLUSIVE; i++) {
++		if(user == 0 || exclusive_info[i].fp_realuid == user || vp->v_uid == user){
++			if(exclusive_info[i].v_inode_nr == vp->v_inode_nr){
++				exclusive_info[i].fp_realuid = -1;
++				exclusive_info[i].v_inode_nr = 0;
++				exclusive_info[i].want_to_die = 0;
++				exclusive_info[i].fd = -1;
++				return 0;
++			}
++		} else if(exclusive_info[i].v_inode_nr == vp->v_inode_nr){
++			return 1;
++		}
++	}
++	return 2;
++}
++
++
++int do_exclusive(void) {
++	vir_bytes name = job_m_in.m_lc_vfs_exclusive.name;
++    size_t len = job_m_in.m_lc_vfs_exclusive.len;
++    int flags = job_m_in.m_lc_vfs_exclusive.flags;
++	uid_t user = fp->fp_realuid;
++
++	struct vnode *vp = NULL;
++  	struct vmnt *vmp = NULL;
++	char fullpath[PATH_MAX];
++
++	struct lookup resolve;
++
++	lookup_init(&resolve, fullpath, PATH_NOFLAGS, &vmp, &vp);
++	resolve.l_vmnt_lock = VMNT_WRITE;
++	resolve.l_vnode_lock = VNODE_READ;
++
++	if(fetch_name(name, len, fullpath) != OK){ return err_code;}
++	if ((vp = eat_path(&resolve, fp)) == NULL){ return(err_code);}
++
++	if((forbidden(fp, vp, W_BIT) != OK) && (forbidden(fp, vp, R_BIT) != OK)){
++		unlock_vnode(vp);
++		unlock_vmnt(vmp);
++		put_vnode(vp);
++		return EACCES;
++	}
++	
++	//sprawdzenie czy nie jest folder rurą lub jakis dymkiem
++	if(!S_ISREG(vp->v_mode)) {
++		unlock_vnode(vp);
++		unlock_vmnt(vmp);
++		put_vnode(vp);
++		return EFTYPE;
++  	}
++
++	struct exclusive_info *free_slot = NULL;
++	int res = 0;
++
++	switch (flags) {
++    	case EXCL_LOCK:
++			for (int i = 0; i < NR_EXCLUSIVE; i++) {
++				if (exclusive_info[i].v_inode_nr ==  vp->v_inode_nr){
++					unlock_vnode(vp);
++					unlock_vmnt(vmp);
++					put_vnode(vp);
++					return EALREADY;
++				}
++			}
++			free_slot = lock_free_slot(vp, -1, fp->fp_pid);
++			if(free_slot == NULL){
++				unlock_vnode(vp);
++				unlock_vmnt(vmp);
++				put_vnode(vp);
++				return ENOLCK;
++			}
++            break;
++        case EXCL_LOCK_NO_OTHERS:
++			for (int i = 0; i < NR_EXCLUSIVE; i++) {
++				if (exclusive_info[i].v_inode_nr ==  vp->v_inode_nr){
++					unlock_vnode(vp);
++					unlock_vmnt(vmp);
++					put_vnode(vp);
++					return EALREADY;
++				}
++			}
++			for(int i = 0;i < NR_PROCS;i++){
++				if(fproc[i].fp_realuid != user){
++					for(int j = 0;j < OPEN_MAX;j++){
++						if(fproc[i].fp_filp[j] != NULL && fproc[i].fp_filp[j]->filp_vno == vp){
++							unlock_vnode(vp);
++							unlock_vmnt(vmp);
++							put_vnode(vp);
++							return EAGAIN;
++						}
++					}
++				}
++			}
++			free_slot = lock_free_slot(vp, -1, fp->fp_pid);
++			if(free_slot == NULL){
++				unlock_vnode(vp);
++				unlock_vmnt(vmp);
++				put_vnode(vp);
++				return ENOLCK;
++			}
++            break;
++        case EXCL_UNLOCK:
++			res = unlock_file(vp, user);
++			if(res == 1){
++				unlock_vnode(vp);
++				unlock_vmnt(vmp);
++				put_vnode(vp);
++				return EPERM;
++			} else if(res == 2){
++				unlock_vnode(vp);
++				unlock_vmnt(vmp);
++				put_vnode(vp);
++				return EINVAL;
++			}
++            break;
++        case EXCL_UNLOCK_FORCE:
++			res = unlock_file_force(vp, user);
++			if(res == 1){
++				unlock_vnode(vp);
++				unlock_vmnt(vmp);
++				put_vnode(vp);
++				return EPERM;
++			} else if(res == 2){
++				unlock_vnode(vp);
++				unlock_vmnt(vmp);
++				put_vnode(vp);
++				return EINVAL;
++			}
++            break;
++        default:
++			unlock_vnode(vp);
++			unlock_vmnt(vmp);
++			put_vnode(vp);
++            return EINVAL;
++    }
++	unlock_vnode(vp);
++	unlock_vmnt(vmp);
++	put_vnode(vp);
++	return OK;  // TODO: implementacja VFS_EXCLUSIVE
++}
++
++int do_fexclusive(void) {
++	int fd = job_m_in.m_lc_vfs_exclusive.fd;
++	int flags = job_m_in.m_lc_vfs_exclusive.flags;
++
++	struct filp *filp;
++	if((filp = get_filp2(fp, fd, VNODE_READ)) == NULL){
++		return err_code;	
++	}
++
++	struct vnode *vp = filp->filp_vno;
++    uid_t user = fp->fp_realuid;
++
++	if((forbidden(fp, vp, W_BIT) != OK) && (forbidden(fp, vp, R_BIT) != OK)){
++		unlock_filp(filp);
++		return EACCES;
++	}
++
++	if (!S_ISREG(vp->v_mode)) {
++        unlock_filp(filp);
++        return EFTYPE;
++    }
++
++	struct exclusive_info *free_slot = NULL;
++	int res = 0;
++
++	switch (flags) {
++    	case EXCL_LOCK:
++			for (int i = 0; i < NR_EXCLUSIVE; i++) {
++				if (exclusive_info[i].v_inode_nr ==  vp->v_inode_nr){
++					unlock_filp(filp);
++					return EALREADY;
++				}
++			}
++			free_slot = lock_free_slot(vp, fd, fp->fp_pid);
++			if(free_slot == NULL){
++				unlock_filp(filp);
++				return ENOLCK;
++			}
++            break;
++        case EXCL_LOCK_NO_OTHERS:
++			for (int i = 0; i < NR_EXCLUSIVE; i++) {
++				if (exclusive_info[i].v_inode_nr ==  vp->v_inode_nr){
++					unlock_filp(filp);
++					return EALREADY;
++				}
++			}
++			for(int i = 0;i < NR_PROCS;i++){
++				if(fproc[i].fp_realuid != user){
++					for(int j = 0;j < OPEN_MAX;j++){
++						if(fproc[i].fp_filp[j] != NULL && fproc[i].fp_filp[j]->filp_vno == vp){
++							unlock_filp(filp);
++							return EAGAIN;
++						}
++					}
++				}
++			}
++			free_slot = lock_free_slot(vp, fd, fp->fp_pid);
++			if(free_slot == NULL){
++				unlock_filp(filp);
++				return ENOLCK;
++			}
++            break;
++        case EXCL_UNLOCK:
++			res = unlock_file(vp, user);
++			if(res == 1){
++				unlock_filp(filp);
++				return EPERM;
++			} else if(res == 2){
++				unlock_filp(filp);
++				return EINVAL;
++			}
++            break;
++        case EXCL_UNLOCK_FORCE:
++			res = unlock_file_force(vp, user);
++			if(res == 1){
++				unlock_filp(filp);
++				return EPERM;
++			} else if(res == 2){
++				unlock_filp(filp);
++				return EINVAL;
++			}
++            break;
++        default:
++			unlock_filp(filp);
++            return EINVAL;
++    }
++
++	unlock_filp(filp);
++	return OK;  // TODO: implementacja VFS_FEXCLUSIVE
++}
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/fproc.h Sources/usr/src/minix/servers/vfs/fproc.h
+--- OriginalSources/usr/src/minix/servers/vfs/fproc.h	2023-06-16 19:53:54.499494911 +0200
++++ Sources/usr/src/minix/servers/vfs/fproc.h	2023-06-19 01:44:02.299103561 +0200
+@@ -69,4 +69,13 @@ EXTERN struct fproc {
+ #define REVIVING           0xDEEAD	/* process is being revived from suspension */
+ #define PID_FREE	   0	/* process slot free */
+ 
++EXTERN struct exclusive_info {
++  pid_t fp_realuid;
++  pid_t fp_pid;
++  ino_t v_inode_nr;
++  int want_to_die;
++  int fd;
++} exclusive_info[NR_EXCLUSIVE];
++
++
+ #endif /* __VFS_FPROC_H__ */
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/link.c Sources/usr/src/minix/servers/vfs/link.c
+--- OriginalSources/usr/src/minix/servers/vfs/link.c	2023-06-16 19:53:54.499494911 +0200
++++ Sources/usr/src/minix/servers/vfs/link.c	2023-06-18 23:04:17.842919394 +0200
+@@ -105,12 +105,45 @@ int do_unlink(void)
+   if (copy_path(fullpath, sizeof(fullpath)) != OK)
+ 	return(err_code);
+ 
++  // sosyn
++  struct vnode *vp_pom = NULL;
++  struct vmnt *vmp_pom = NULL;
++
++	struct lookup resolve_pom;
++
++	lookup_init(&resolve_pom, fullpath, PATH_NOFLAGS, &vmp_pom, &vp_pom);
++	resolve_pom.l_vmnt_lock = VMNT_WRITE;
++	resolve_pom.l_vnode_lock = VNODE_READ;
++
++	if ((vp_pom = eat_path(&resolve_pom, fp)) == NULL){ return(err_code);}
++
++  for(int i = 0;i < NR_EXCLUSIVE;i++){
++		if(exclusive_info[i].v_inode_nr == vp_pom->v_inode_nr && exclusive_info[i].fp_realuid != fp->fp_realuid){
++      unlock_vnode(vp_pom);
++      unlock_vmnt(vmp_pom);
++      put_vnode(vp_pom);
++			return EACCES;
++		}
++	}
++  for(int i = 0;i < NR_EXCLUSIVE;i++){
++		if(exclusive_info[i].v_inode_nr == vp_pom->v_inode_nr && exclusive_info[i].fp_realuid == fp->fp_realuid){
++      exclusive_info[i].want_to_die = 1;
++		}
++	}
++  //sossyn
++  unlock_vnode(vp_pom);
++  unlock_vmnt(vmp_pom);
++  put_vnode(vp_pom);
++  // konie sossyn
++
+   lookup_init(&resolve, fullpath, PATH_RET_SYMLINK, &vmp, &dirp_l);
+   resolve.l_vmnt_lock = VMNT_WRITE;
+   resolve.l_vnode_lock = VNODE_WRITE;
+ 
+   /* Get the last directory in the path. */
+-  if ((dirp = last_dir(&resolve, fp)) == NULL) return(err_code);
++  if ((dirp = last_dir(&resolve, fp)) == NULL){
++    return(err_code);
++  }
+ 
+   /* Make sure that the object is a directory */
+   if (!S_ISDIR(dirp->v_mode)) {
+@@ -184,6 +219,66 @@ int do_rename(void)
+   vname2 = job_m_in.m_lc_vfs_link.name2;
+   vname2_length = job_m_in.m_lc_vfs_link.len2;
+ 
++  // sosyn
++  struct vnode *vp_pom = NULL;
++  struct vmnt *vmp_pom = NULL;
++
++	struct lookup resolve_pom;
++  char fullpath_pom[PATH_MAX];
++
++	lookup_init(&resolve_pom, fullpath_pom, PATH_NOFLAGS, &vmp_pom, &vp_pom);
++	resolve_pom.l_vmnt_lock = VMNT_WRITE;
++	resolve_pom.l_vnode_lock = VNODE_READ;
++
++  if (fetch_name(vname1, vname1_length, fullpath_pom) != OK) return(err_code);
++	if ((vp_pom = eat_path(&resolve_pom, fp)) == NULL){ return(err_code);}
++
++  for(int i = 0;i < NR_EXCLUSIVE;i++){
++		if(exclusive_info[i].v_inode_nr == vp_pom->v_inode_nr && exclusive_info[i].fp_realuid != fp->fp_realuid){
++      unlock_vnode(vp_pom);
++      unlock_vmnt(vmp_pom);
++      put_vnode(vp_pom);
++			return EACCES;
++		}
++	}
++  unlock_vnode(vp_pom);
++  unlock_vmnt(vmp_pom);
++  put_vnode(vp_pom);
++  // konie sossyn
++
++  // sosyn
++  struct vnode *vp_pom2 = NULL;
++  struct vmnt *vmp_pom2 = NULL;
++
++	struct lookup resolve_pom2;
++  char fullpath_pom2[PATH_MAX];
++
++	lookup_init(&resolve_pom2, fullpath_pom2, PATH_NOFLAGS, &vmp_pom2, &vp_pom2);
++	resolve_pom2.l_vmnt_lock = VMNT_WRITE;
++	resolve_pom2.l_vnode_lock = VNODE_READ;
++
++  if (fetch_name(vname2, vname2_length, fullpath_pom2) == OK){
++    if ((vp_pom2 = eat_path(&resolve_pom2, fp)) != NULL){
++      for(int i = 0;i < NR_EXCLUSIVE;i++){
++        if(exclusive_info[i].v_inode_nr == vp_pom2->v_inode_nr && exclusive_info[i].fp_realuid != fp->fp_realuid){
++          unlock_vnode(vp_pom2);
++          unlock_vmnt(vmp_pom2);
++          put_vnode(vp_pom2);
++          return EACCES;
++        }
++      }
++      for(int i = 0;i < NR_EXCLUSIVE;i++){
++        if(exclusive_info[i].v_inode_nr == vp_pom2->v_inode_nr && exclusive_info[i].fp_realuid == fp->fp_realuid){
++          exclusive_info[i].want_to_die = 1;
++        }
++      }
++      unlock_vnode(vp_pom2);
++      unlock_vmnt(vmp_pom2);
++      put_vnode(vp_pom2);
++    }
++  }
++  // konie sossyn
++
+   lookup_init(&resolve, fullpath, PATH_RET_SYMLINK, &oldvmp, &old_dirp);
+   /* Do not yet request exclusive lock on vmnt to prevent deadlocks later on */
+   resolve.l_vmnt_lock = VMNT_WRITE;
+@@ -268,6 +364,17 @@ int do_rename(void)
+   put_vnode(old_dirp);
+   put_vnode(new_dirp);
+ 
++  // if(xd == 1){
++  //   for(int i = 0;i < NR_EXCLUSIVE;i++){
++  //     if(exclusive_info[i].v_inode_nr == vp_pom2->v_inode_nr && exclusive_info[i].fp_realuid == fp->fp_realuid){
++  //       exclusive_info[i].want_to_die = 1;
++  //     }
++  //   }
++  //   unlock_vnode(vp_pom2);
++  //   unlock_vmnt(vmp_pom2);
++  //   put_vnode(vp_pom2);
++  // }
++
+   return(r);
+ }
+ 
+@@ -304,6 +411,16 @@ int do_truncate(void)
+   if (fetch_name(vname, vname_length, fullpath) != OK) return(err_code);
+   if ((vp = eat_path(&resolve, fp)) == NULL) return(err_code);
+ 
++  // sosyn
++  for(int i = 0;i < NR_EXCLUSIVE;i++){
++		if(exclusive_info[i].v_inode_nr == vp->v_inode_nr && exclusive_info[i].fp_realuid != fp->fp_realuid){
++      unlock_vnode(vp);
++      unlock_vmnt(vmp);
++      put_vnode(vp);
++			return EACCES;
++		}
++	}
++
+   /* Ask FS to truncate the file */
+   if ((r = forbidden(fp, vp, W_BIT)) == OK) {
+ 	/* If the file size does not change, do not make the actual call. This
+@@ -344,6 +461,13 @@ int do_ftruncate(void)
+ 
+   vp = rfilp->filp_vno;
+ 
++  for(int i = 0;i < NR_EXCLUSIVE;i++){
++		if(exclusive_info[i].v_inode_nr == vp->v_inode_nr && exclusive_info[i].fp_realuid != fp->fp_realuid){
++			unlock_filp(rfilp);
++			return EACCES;
++		}
++	}
++
+   if (!(rfilp->filp_mode & W_BIT))
+ 	r = EBADF;
+   else if (S_ISREG(vp->v_mode) && vp->v_size == length)
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/main.c Sources/usr/src/minix/servers/vfs/main.c
+--- OriginalSources/usr/src/minix/servers/vfs/main.c	2023-06-16 19:53:54.499494911 +0200
++++ Sources/usr/src/minix/servers/vfs/main.c	2023-06-19 00:55:27.030258912 +0200
+@@ -289,6 +289,13 @@ static int sef_cb_init_fresh(int UNUSED(
+   message mess;
+   struct rprocpub rprocpub[NR_BOOT_PROCS];
+ 
++  for (int i = 0; i < NR_EXCLUSIVE; i++) {
++	exclusive_info[i].fp_realuid = -1;
++	exclusive_info[i].v_inode_nr = 0;
++	exclusive_info[i].want_to_die = 0;
++	exclusive_info[i].fd = -1;
++  }
++
+   receive_from = ANY;
+   self = NULL;
+   verbose = 0;
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/open.c Sources/usr/src/minix/servers/vfs/open.c
+--- OriginalSources/usr/src/minix/servers/vfs/open.c	2023-06-16 19:53:54.499494911 +0200
++++ Sources/usr/src/minix/servers/vfs/open.c	2023-06-19 01:45:39.589063231 +0200
+@@ -41,7 +41,11 @@ int do_open(void)
+ /* Perform the open(name, flags) system call with O_CREAT *not* set. */
+   int open_flags;
+   char fullpath[PATH_MAX];
++  vir_bytes vname;
++  size_t vname_length;
+ 
++  vname = job_m_in.m_lc_vfs_path.name;
++  vname_length = job_m_in.m_lc_vfs_path.len;
+   open_flags = job_m_in.m_lc_vfs_path.flags;
+ 
+   if (open_flags & O_CREAT)
+@@ -128,6 +132,17 @@ int common_open(char path[PATH_MAX], int
+ 		return(err_code);
+ 	}
+ 
++	// sosyn
++  	for(int i = 0;i < NR_EXCLUSIVE;i++){
++		if(exclusive_info[i].v_inode_nr == vp->v_inode_nr && exclusive_info[i].fp_realuid != fp->fp_realuid){
++			unlock_filp(filp);
++			unlock_vnode(vp);
++			unlock_vmnt(vmp);
++			put_vnode(vp);
++			return EACCES;
++		}
++	}
++
+ 	if (vmp != NULL) unlock_vmnt(vmp);
+   }
+ 
+@@ -708,6 +724,16 @@ int fd_nr;
+ 	if (nr_locks < lock_count)
+ 		lock_revive();	/* one or more locks released */
+   }
++  if(fd_nr != -1){
++	for (int i = 0; i < NR_EXCLUSIVE; i++) {	
++		if (exclusive_info[i].fd == fd_nr && exclusive_info[i].fp_realuid == fp->fp_realuid && exclusive_info[i].fp_pid == fp->fp_pid) {
++			exclusive_info[i].fp_realuid = -1;
++			exclusive_info[i].v_inode_nr = 0;
++			exclusive_info[i].want_to_die = 0;
++			exclusive_info[i].fd = -1;
++		}
++	}
++  }
+ 
+   return(OK);
+ }
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/proto.h Sources/usr/src/minix/servers/vfs/proto.h
+--- OriginalSources/usr/src/minix/servers/vfs/proto.h	2023-06-16 19:53:54.499494911 +0200
++++ Sources/usr/src/minix/servers/vfs/proto.h	2023-06-16 19:54:55.317803683 +0200
+@@ -348,4 +348,9 @@ void worker_wait(void);
+ struct worker_thread *worker_suspend(void);
+ void worker_resume(struct worker_thread *org_self);
+ void worker_set_proc(struct fproc *rfp);
++
++/* exclusive.c */
++int do_exclusive(void);
++int do_fexclusive(void);
++
+ #endif
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/read.c Sources/usr/src/minix/servers/vfs/read.c
+--- OriginalSources/usr/src/minix/servers/vfs/read.c	2023-06-16 19:53:54.499494911 +0200
++++ Sources/usr/src/minix/servers/vfs/read.c	2023-06-18 17:15:38.601259103 +0200
+@@ -111,6 +111,13 @@ int actual_read_write_peek(struct fproc
+ 	return(0);	/* so char special files need not check for 0*/
+   }
+ 
++  for(int i = 0;i < NR_EXCLUSIVE;i++){
++		if(exclusive_info[i].v_inode_nr == f->filp_vno->v_inode_nr && exclusive_info[i].fp_realuid != fp->fp_realuid){
++			unlock_filp(f);
++			return EACCES;
++		}
++  }
++
+   r = read_write(rfp, rw_flag, f, scratch(rfp).io.io_buffer,
+ 	scratch(rfp).io.io_nbytes, who_e);
+ 
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/table.c Sources/usr/src/minix/servers/vfs/table.c
+--- OriginalSources/usr/src/minix/servers/vfs/table.c	2023-06-16 19:53:54.499494911 +0200
++++ Sources/usr/src/minix/servers/vfs/table.c	2023-06-16 19:54:55.317803683 +0200
+@@ -65,4 +65,6 @@ int (* const call_vec[NR_VFS_CALLS])(voi
+ 	CALL(VFS_COPYFD)	= do_copyfd,		/* copyfd(2) */
+ 	CALL(VFS_CHECKPERMS)	= do_checkperms,	/* checkperms(2) */
+ 	CALL(VFS_GETSYSINFO)	= do_getsysinfo,	/* getsysinfo(2) */
++	CALL(VFS_EXCLUSIVE)	= do_exclusive,		/* exclusive() */
++	CALL(VFS_FEXCLUSIVE)	= do_fexclusive,	/* fexclusive() */
+ };
+diff -rupNEZbB OriginalSources/usr/src/minix/servers/vfs/vnode.c Sources/usr/src/minix/servers/vfs/vnode.c
+--- OriginalSources/usr/src/minix/servers/vfs/vnode.c	2023-06-16 19:53:54.499494911 +0200
++++ Sources/usr/src/minix/servers/vfs/vnode.c	2023-06-19 01:16:27.019760615 +0200
+@@ -289,6 +291,15 @@ void put_vnode(struct vnode *vp)
+   if (vp->v_mapfs_e != NONE && vp->v_mapfs_e != vp->v_fs_e)
+ 	req_putnode(vp->v_mapfs_e, vp->v_mapinode_nr, vp->v_mapfs_count);
+ 
++  for (int i = 0; i < NR_EXCLUSIVE; i++) {
++    if(exclusive_info[i].want_to_die == 1 && exclusive_info[i].v_inode_nr == vp->v_inode_nr){
++      exclusive_info[i].fp_realuid = -1;
++      exclusive_info[i].v_inode_nr = 0;
++      exclusive_info[i].want_to_die = 0;
++      exclusive_info[i].want_to_die = -1;
++    }
++  }
++
+   vp->v_fs_count = 0;
+   vp->v_ref_count = 0;
+   vp->v_mapfs_count = 0;
+diff -rupNEZbB OriginalSources/usr/src/sys/sys/fcntl.h Sources/usr/src/sys/sys/fcntl.h
+--- OriginalSources/usr/src/sys/sys/fcntl.h	2023-06-16 19:53:55.268661263 +0200
++++ Sources/usr/src/sys/sys/fcntl.h	2023-06-16 19:54:55.317803683 +0200
+@@ -301,6 +301,13 @@ struct flock {
+ #define	AT_REMOVEDIR		0x800	/* Remove directory only */
+ #endif
+ 
++/*
++ * Constants for exclusive lock.
++ */
++#define EXCL_UNLOCK				1	/* Unlock. */
++#define EXCL_UNLOCK_FORCE		2	/* Forced unlock by privileged users. */
++#define EXCL_LOCK				4	/* Lock unconditionally. */
++#define EXCL_LOCK_NO_OTHERS		8	/* Lock if no other users have this file opened. */
+ 
+ #ifndef _KERNEL
+ #include <sys/cdefs.h>
